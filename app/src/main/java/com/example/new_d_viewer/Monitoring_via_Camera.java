@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -57,6 +58,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
     private Button btn_stop;
     private RandomAccessFile raf;
     private TextView txt_coordinate;
+    private int num_counters;
+    private File file_root_dir;
 
 
     @Override
@@ -65,6 +68,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         setContentView(R.layout.activity_monitoring_via_camera);
         cameraView = findViewById(R.id.camera_view);
         cameraView.setCvCameraViewListener(this);
+        cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
+        isFrontCamera = true;
         btn_switch_camera = findViewById(R.id.button_switch_camera);
         btn_switch_camera.setOnClickListener(this);
         btn_start = findViewById(R.id.button_start_monitor);
@@ -74,6 +79,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         txt_coordinate = findViewById(R.id.text_coordinate);
         Bundle bundle = getIntent().getExtras();
         real_world_r = bundle.getDouble("dimension");
+
+
 
 
         initWindowSettings();
@@ -109,6 +116,7 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         mRgba = inputFrame.rgba();
         //将实时画面灰度化
         //Imgproc.cvtColor(inputFrame.rgba(),mRgba,Imgproc.COLOR_RGB2GRAY);
+        //Imgproc.threshold(inputFrame.gray(),mRgba,125,255,0);
         //假设已经划分了ROI，画面中只有圆点，直接canny
         Imgproc.Canny(inputFrame.gray(),mRgba,255,125);
         //新建List（里面元素格式是MatofPoint，int形式的2D点阵）用于储存边缘
@@ -117,36 +125,44 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         Mat hierarchy = new Mat();
         //对Canny得到的结果再进行一次边缘检测，得到最外边的边缘
         Imgproc.findContours(mRgba,contours,hierarchy,Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE);
-        //输出找到了几个边缘，其实对一个圆就是输出一个边缘
-        Log.i("check","The Number of contours is "+contours.size());
+        num_counters = contours.size();
+        //修改UI只能在主线程中进行！因此当需要在子线程中修改UI的时候就要用这个方法
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                txt_coordinate.setText("找到了"+ num_counters +"个边缘");
+            }
+        });
         //新建一个MatOfPoint2f对象（float形式的2D点阵），用于MatOfPoint和MatOfPoint2f之间的转换
-        MatOfPoint2f matOfPoint2f = new MatOfPoint2f();
-        for (int i = 0;i < contours.size(); i++){
+        //MatOfPoint2f matOfPoint2f = new MatOfPoint2f();
+        //for (int i = 0;i < contours.size(); i++){
             //将每一个得到的边缘从MatOfPoint转化为MatOfPoint2f
-            contours.get(i).convertTo(matOfPoint2f, CvType.CV_32F);
-            try {
+            //contours.get(i).convertTo(matOfPoint2f, CvType.CV_32F);
+            //try {
                 //椭圆拟合，得到旋转矩形
-                RotatedRect rotatedRect = Imgproc.fitEllipse(matOfPoint2f);
+                //RotatedRect rotatedRect = Imgproc.fitEllipse(matOfPoint2f);
                 //获取圆心
-                center = rotatedRect.center;
-                coordinate_x = center.x;
-                coordinate_y = center.y;
+                //center = rotatedRect.center;
+                //coordinate_x = center.x;
+                //coordinate_y = center.y;
                 //获取半径
-                Size size = rotatedRect.size;
-                width = size.width;
-                double height = size.height;
-                //保留三位小数
+                //Size size = rotatedRect.size;
+                //width = size.width;
+                //double height = size.height;
+                //下面两行先不要！保留三位小数
                 //decimalFormat = new DecimalFormat("#####0.000");
                 //txt_coor.setText("Target center coordinate:"+ decimalFormat.format(coordinate_x)+","+ decimalFormat.format(coordinate_y));
                 //计算比例系数，mm/pixel
-                scale_factor = real_world_r / (width / 2);
+                //scale_factor = real_world_r / (width / 2);
                 //txt_displacement.setText(String.valueOf((coordinate_x-coordinate_x0)*scale_factor));
-                txt_coordinate.setText(coordinate_x+","+coordinate_y);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
+                //txt_coordinate.setText(coordinate_x+","+coordinate_y);
+            //} catch (Exception e) {
+                //e.printStackTrace();
+                //Looper.prepare();
+                //Toast.makeText(this.getApplicationContext(),"ROI should only contain the circular target",Toast.LENGTH_LONG).show();
+                //Looper.loop();
+            //}
+        //}
         return mRgba;
     }
 
@@ -168,7 +184,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                 long timeNow = new Date().getTime();
                 try {
                     //这里我做了修改，改成在根目录下新建文件夹
-                    File file_root_dir = new File(Environment.getExternalStorageDirectory(),"D-viewer");
+                    file_root_dir = new File(Environment.getExternalStorageDirectory(),"D-viewer");
+                    Log.i("error","file_root_dir is"+ file_root_dir);
                     if (!file_root_dir.exists()) {
                         file_root_dir.mkdir();
                     }
@@ -176,7 +193,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                     Log.i("error:", e + "");
                 }
                 try {
-                    file_data = new File("D-viewer/coordinate.txt");
+                    file_data = new File(file_root_dir,"coordinate.txt");
+                    Toast.makeText(this.getApplicationContext(),"monitoring process started",Toast.LENGTH_LONG).show();
                     if (!file_data.exists()) {
                         file_data.createNewFile();
                     }
@@ -184,29 +202,36 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                     e.printStackTrace();
                 }
                 try {
-                    //这个类对处理文本很方便，可以记下来
-                    raf = new RandomAccessFile(file_data, "rwd");
-                    //将文件指针定位到文件结尾处，续写
-                    raf.seek(file_data.length());
-                    String str_Content = new String(scale_factor+" "+coordinate_x+" "+coordinate_y+" "+timeNow);
-                    //在这里写入
-                    raf.write(str_Content.getBytes());
-                    if (file_data.length() == 10){
-                        raf.close();
-                        Toast.makeText(this.getApplicationContext(),"monitoring process stopped",Toast.LENGTH_LONG);
+                    if (file_data.exists()) {
+                        //这个类对处理文本很方便，可以记下来
+                        raf = new RandomAccessFile(file_data, "rwd");
+                        //将文件指针定位到文件结尾处，续写
+                        raf.seek(file_data.length());
+                        //String str_Content = new String(scale_factor+" "+coordinate_x+" "+coordinate_y+" "+timeNow);
+                        String str_Content = new String(num_counters+" "+timeNow);
+                        //在这里写入
+                        raf.write(str_Content.getBytes());
+                    } else {
+                        Log.i("error","target txt file does not exist!");
                     }
+
                 } catch (Exception e) {
                     Log.e("TestFile", "Error on write File:" + e);
                 }
 
 
-                //case R.id.button_stop_monitor:
-                //try {
-                //raf.close();
-                //} catch (IOException e) {
-                //e.printStackTrace();
-                //}
-                //break;
+                case R.id.button_stop_monitor:
+                try {
+                    if (raf != null) {
+                        raf.close();
+                        Toast.makeText(this.getApplicationContext(),"monitoring process stopped",Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(this.getApplicationContext(),"target txt file does not exist!",Toast.LENGTH_LONG).show();
+                    }
+                } catch (IOException e) {
+                e.printStackTrace();
+                }
+                break;
         }
         if (cameraView != null) {
             cameraView.disableView();
