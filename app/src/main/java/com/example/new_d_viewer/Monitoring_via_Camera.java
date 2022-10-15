@@ -179,22 +179,24 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                 }
                 break;
 
+
             case R.id.button_start_monitor:
+                Toast.makeText(this.getApplicationContext(),"monitoring process started",Toast.LENGTH_LONG).show();
                 //获取时间，并转化为日常标准格式,Date()获取中国制时间，getTime（）转化为时间戳
                 long timeNow = new Date().getTime();
                 try {
                     //这里我做了修改，改成在根目录下新建文件夹
-                    file_root_dir = new File(Environment.getExternalStorageDirectory(),"D-viewer");
+                    file_root_dir = new File(Environment.getExternalStorageDirectory(),"D_viewer");
                     Log.i("error","file_root_dir is"+ file_root_dir);
                     if (!file_root_dir.exists()) {
-                        file_root_dir.mkdir();
+                        file_root_dir.mkdirs();
                     }
                 } catch (Exception e) {
                     Log.i("error:", e + "");
                 }
                 try {
                     file_data = new File(file_root_dir,"coordinate.txt");
-                    Toast.makeText(this.getApplicationContext(),"monitoring process started",Toast.LENGTH_LONG).show();
+                    Log.i("error","The path of file_data is"+ file_data);
                     if (!file_data.exists()) {
                         file_data.createNewFile();
                     }
@@ -218,6 +220,7 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                 } catch (Exception e) {
                     Log.e("TestFile", "Error on write File:" + e);
                 }
+                break;
 
 
                 case R.id.button_stop_monitor:
