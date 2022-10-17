@@ -60,6 +60,8 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
     private TextView txt_coordinate;
     private int num_counters;
     private File file_root_dir;
+    private long timeNow;
+    private boolean isMonitoringStarted;
 
 
     @Override
@@ -70,6 +72,7 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         cameraView.setCvCameraViewListener(this);
         cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
         isFrontCamera = true;
+        isMonitoringStarted = false;
         btn_switch_camera = findViewById(R.id.button_switch_camera);
         btn_switch_camera.setOnClickListener(this);
         btn_start = findViewById(R.id.button_start_monitor);
@@ -79,6 +82,29 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
         txt_coordinate = findViewById(R.id.text_coordinate);
         Bundle bundle = getIntent().getExtras();
         real_world_r = bundle.getDouble("dimension");
+
+        //创建文件的部分改到在初始化里完成
+        //获取时间，并转化为日常标准格式,Date()获取中国制时间，getTime（）转化为时间戳
+        timeNow = new Date().getTime();
+        try {
+            //这里我做了修改，改成在根目录下新建文件夹,注意这个方法在安卓10（API29）开始被弃用了
+            file_root_dir = new File(Environment.getExternalStorageDirectory(),"D_viewer");
+            Log.i("error","file_root_dir is"+file_root_dir);
+            if (!file_root_dir.exists()) {
+                file_root_dir.mkdirs();
+            }
+        } catch (Exception e) {
+            Log.i("error:", e + "");
+        }
+        try {
+            file_data = new File(file_root_dir,"coordinate1.txt");
+            Log.i("error","The path of file_data is"+file_data);
+            if (!file_data.exists()) {
+                file_data.createNewFile();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
 
 
@@ -163,6 +189,29 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
                 //Looper.loop();
             //}
         //}
+        //在布尔值变为真（点下了开始按键）的时候才开始逐帧写入数据
+        if (isMonitoringStarted) {
+            try {
+                Looper.prepare();
+                Toast.makeText(this.getApplicationContext(),"monitoring process started",Toast.LENGTH_LONG).show();
+                Looper.loop();
+                if (file_data.exists()) {
+                    //这个类对处理文本很方便，可以记下来
+                    raf = new RandomAccessFile(file_data, "rwd");
+                    //将文件指针定位到文件结尾处，续写
+                    raf.seek(file_data.length());
+                    //String str_Content = new String(scale_factor+" "+coordinate_x+" "+coordinate_y+" "+timeNow);
+                    String str_Content = new String(num_counters+" "+timeNow+" "+"\r\n");
+                    //在这里写入
+                    raf.write(str_Content.getBytes());
+                } else {
+                    Log.i("error","target txt file does not exist!");
+                }
+
+            } catch (Exception e) {
+                Log.e("TestFile", "Error on write File:" + e);
+            }
+        }
         return mRgba;
     }
 
@@ -181,45 +230,7 @@ public class Monitoring_via_Camera extends AppCompatActivity implements CameraBr
 
 
             case R.id.button_start_monitor:
-                Toast.makeText(this.getApplicationContext(),"monitoring process started",Toast.LENGTH_LONG).show();
-                //获取时间，并转化为日常标准格式,Date()获取中国制时间，getTime（）转化为时间戳
-                long timeNow = new Date().getTime();
-                try {
-                    //这里我做了修改，改成在根目录下新建文件夹
-                    file_root_dir = new File(Environment.getExternalStorageDirectory(),"D_viewer");
-                    Log.i("error","file_root_dir is"+ file_root_dir);
-                    if (!file_root_dir.exists()) {
-                        file_root_dir.mkdirs();
-                    }
-                } catch (Exception e) {
-                    Log.i("error:", e + "");
-                }
-                try {
-                    file_data = new File(file_root_dir,"coordinate.txt");
-                    Log.i("error","The path of file_data is"+ file_data);
-                    if (!file_data.exists()) {
-                        file_data.createNewFile();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                try {
-                    if (file_data.exists()) {
-                        //这个类对处理文本很方便，可以记下来
-                        raf = new RandomAccessFile(file_data, "rwd");
-                        //将文件指针定位到文件结尾处，续写
-                        raf.seek(file_data.length());
-                        //String str_Content = new String(scale_factor+" "+coordinate_x+" "+coordinate_y+" "+timeNow);
-                        String str_Content = new String(num_counters+" "+timeNow);
-                        //在这里写入
-                        raf.write(str_Content.getBytes());
-                    } else {
-                        Log.i("error","target txt file does not exist!");
-                    }
-
-                } catch (Exception e) {
-                    Log.e("TestFile", "Error on write File:" + e);
-                }
+                isMonitoringStarted = true;
                 break;
 
 
